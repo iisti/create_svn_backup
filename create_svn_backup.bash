@@ -104,15 +104,15 @@ while [ "$#" -gt 0 ]; do
 done
 
 function create_repo() {
-	# Parameter 1 = repo name with path
-	if [ "$1" != "" ]; then
-		# Create variables for easier code reading.
+    # Parameter 1 = repo name with path
+    if [ "$1" != "" ]; then
+        # Create variables for easier code reading.
         # f means function in the variable name
         frepo="$1"
-		svnadmin create "$frepo"
-		# Create hook
-		pre_revrop="$frepo""/hooks/pre-revprop-change"
-		cat >> "$pre_revrop" <<EOL
+        svnadmin create "$frepo"
+        # Create hook
+        pre_revrop="$frepo""/hooks/pre-revprop-change"
+        cat >> "$pre_revrop" <<EOL
 #!/bin/bash
 
 USER="\$3"
@@ -124,14 +124,14 @@ echo "ERROR: Only user \"$backup_user\" can change revision properties!" >&2
 exit 1
 EOL
 
-		# Change owner of the files
-		chown -R svnsync "$frepo"
-		# Make that file executable
-		chmod u+x "$pre_revrop"
-	else
+        # Change owner of the files
+        chown -R svnsync "$frepo"
+        # Make that file executable
+        chmod u+x "$pre_revrop"
+    else
         # https://stackoverflow.com/questions/2990414/echo-that-outputs-to-stderr
-		usage_fatal "function $0 requires repository name as an argument"
-	fi
+        usage_fatal "function $0 requires repository name as an argument"
+    fi
 }
 
 # Check that there's at least --name and one source given
@@ -234,9 +234,9 @@ then
     fi
     if [[ $REPLY =~ ^[Yy]$ ]]
     then
-    	svnsync init --allow-non-empty --sync-username svnsync \
+        svnsync init --allow-non-empty --sync-username svnsync \
             file://"$new_repo" \
-        	$remote_src \
+            $remote_src \
             --source-username $bkuser
         svnsync sync --sync-username svnsync file://"$new_repo"
     fi
