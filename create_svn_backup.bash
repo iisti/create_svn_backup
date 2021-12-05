@@ -60,28 +60,30 @@ function help_usage() {
 Version: "$script_version"
 Usage: $0 [options]
 
+Attention write the arguments in the order that they're in the list below!
+
 Arguments:
 
   -h, --help
     Display this usage message and exit.
 
+  -n <val>, --name <val>, --name=<val>
+    # New repo, the destination
+    # E.g. /svn/repos/my_repo
+  
+  -d <val>, --dump <val>, --dump=<val>
+    # A SVN dump file which should be loaded to the new repo
+
   -r <val>, --remote_src <val>, --remote_src=<val>
     # Remote source for final sync
     # E.g. https://svn.com/repo
-
+  
   -l <val>, --local_src <val>, --local_src=<val>
     # Local source if synching local repo
     # E.g. /svn/repos/source_repo
 
-  -n <val>, --name <val>, --name=<val>
-    # New repo, the destination
-    # E.g. /svn/repos/my_repo
-
   -u <val>, --user <val>, --user=<val>
     # A user who has access to remote repo
-
-  -d <val>, --dump <val>, --dump=<val>
-    # A SVN dump file which should be loaded to the new repo
 
   -f <val>, --fix_ends <val>, --fix_ends=<val>
     # Choose if the line endings, should be fixed.
@@ -196,11 +198,11 @@ while [ "$#" -gt 0 ]; do
         # the quotes around the equals sign is to work around a
         # bug in emacs' syntax parsing
         --*'='*) shift; set -- "${arg%%=*}" "${arg#*=}" "$@"; continue;;
+        -n|--name) shift; new_repo=$1;;
+        -d|--dump) shift; dump=$1;;
         -r|--remote_source) shift; remote_src=$1;;
         -l|--local_source) shift; local_src=$1;;
-        -n|--name) shift; new_repo=$1;;
         -u|--user) shift; bkuser=$1;;
-        -d|--dump) shift; dump=$1;;
         -f|--fix_ends) shift; fix_ends=$1;;
         -p|--prompt) shift; prompt=$1;; 
         -h|--help) help_usage; exit 0;;
@@ -225,20 +227,34 @@ fi
 
 
 # Check and show parameters
-    echo "New repo will be:         $new_repo"
+echo "New repo will be:         $new_repo"
+
 if [ "$dump" != "empty_dump" ]; then
     echo "SVN dump file is:         $dump"
+else
+    echo "SVN dump file is:         No SVN dump file defined."
 fi
+
 if [ "$local_src" != "empty_local_src" ]; then
     echo "Local source repo is:     $local_src"
+else
+    echo "Local source repo is:     No local repo defined."
 fi
+
 if [ "$remote_src" != "empty_remote_src" ]; then
     echo "Remote source repo is:    $remote_src"
+else
+    echo "Remote source repo is:    No remote repo defined."
 fi
+
 if [ "$bkuser" != "empty_user" ]; then
     echo "Backup user is:           $bkuser"
+else
+    echo "Backup user is:           No backup user defined."
 fi
-echo "Prompt questions:           $prompt"
+
+echo "Fix line endings:         $fix_ends"
+echo "Prompt questions:         $prompt"
 
 # Create new repo
 func_create_repo "$new_repo"
@@ -319,6 +335,7 @@ then
     fi
 fi
 
+
 if [ "$remote_src" != "empty_remote_src" ]
 then
     # Set the sync source to remote
@@ -332,6 +349,7 @@ then
         # Set REPLY y if prompt is "no"
         REPLY="y"
     fi
+
     if [[ $REPLY =~ ^[Yy]$ ]]
     then
         svnsync init --allow-non-empty --sync-username svnsync \
