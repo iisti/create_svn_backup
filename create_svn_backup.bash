@@ -5,8 +5,54 @@
 # Version history:
 # 0.1 First version with non positional arguments
 # 0.2 Added option "prompt" for no questions
-script_version="0.2"
+# 0.3 Changed functionality that one can run the script without any user input.
+script_version="0.3"
 
+
+#####################################
+##### SCRIPT INIT AND CHECKS
+#####################################
+
+# Retrieve from which folder the script is run
+# Source: https://stackoverflow.com/questions/59895/get-the-source-directory-of-a-bash-script-from-within-the-script-itself
+func_get_script_source_dir () {
+    SOURCE="${BASH_SOURCE[0]}"
+    while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
+        DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+        SOURCE="$(readlink "$SOURCE")"
+        # if $SOURCE was a relative symlink, we need to resolve it relative
+        # to the path where the symlink file was located
+        [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+    done
+    local DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+    echo $DIR
+}
+
+# Create directory for logging
+mkdir -p "$(func_get_script_source_dir)"/logs
+
+
+# Variable for adding date into file names
+datefile=$(date +"%Y-%m-%d_%H-%M")
+logfile="$(func_get_script_source_dir)"/logs/create_svn_backup_log_"$datefile".log
+
+
+# Logging
+# Example https://serverfault.com/a/103569/323362 
+# Example 2: https://unix.stackexchange.com/a/67658/375094
+exec 3>&1 4>&2
+trap 'exec 2>&4 1>&3' 0 1 2 3
+exec 2> >(tee -a "$logfile" >&2) \
+    > >(tee -a "$logfile")
+
+echo "$(date --iso-8601=seconds) #### Script started #### "
+
+
+#####################################
+##### FUNCTIONS
+#####################################
+
+# Help message function
 # Example of Bash arguments:
 # https://stackoverflow.com/a/6310937/3498768
 function help_usage() {
@@ -28,19 +74,25 @@ Arguments:
     # E.g. /svn/repos/source_repo
 
   -n <val>, --name <val>, --name=<val>
-    # New repo
+    # New repo, the destination
     # E.g. /svn/repos/my_repo
 
   -u <val>, --user <val>, --user=<val>
-    # User who has access to remote repo
+    # A user who has access to remote repo
 
   -d <val>, --dump <val>, --dump=<val>
-    # SVN dump file for loading
-  
+    # A SVN dump file which should be loaded to the new repo
+
+  -f <val>, --fix_ends <val>, --fix_ends=<val>
+    # Choose if the line endings, should be fixed.
+    # Default is "no"
+
   -p <val>, --prompt <val>, --prompt=<val>
     # Give value yes/no
     # Yes = script will prompt questions
     # No = script run defaults
+    # Default is "no"
+
 
   #### This was something which was in the example
   --
@@ -54,56 +106,7 @@ Arguments:
 EOF
 }
 
-# handy logging and error handling functions
-function log() { printf '%s\n' "$*"; }
-function error() { log "ERROR: $*" >&2; }
-function fatal() { error "$*"; exit 1; }
-function usage_fatal() { error "$*"; help_usage >&2; exit 1; }
-
-# parse default options
-# Remote source for final sync
-# E.g. https://svn.com/repo
-remote_src="empty_remote_src"
-
-# Local source if synching local repo
-# E.g. /svn/repos/source_repo
-local_src="empty_local_src"
-
-# Destination repo
-# E.g. /svn/repos/my_repo
-new_repo="empty_new_repo"
-
-# User who has access to remote repo
-bkuser="empty_user"
-
-# SVN dump file for loading
-dump="empty_dump"
-
-# Prompt questions or run defaults
-prompt="yes"
-
-while [ "$#" -gt 0 ]; do
-    arg=$1
-    case $1 in
-        # convert "--opt=the value" to --opt "the value".
-        # the quotes around the equals sign is to work around a
-        # bug in emacs' syntax parsing
-        --*'='*) shift; set -- "${arg%%=*}" "${arg#*=}" "$@"; continue;;
-        -r|--remote_source) shift; remote_src=$1;;
-        -l|--local_source) shift; local_src=$1;;
-        -n|--name) shift; new_repo=$1;;
-        -u|--user) shift; bkuser=$1;;
-        -d|--dump) shift; dump=$1;;
-        -p|--prompt) shift; prompt=$1;; 
-        -h|--help) help_usage; exit 0;;
-        --) shift; break;;
-        -*) usage_fatal "unknown option: '$1'";;
-        *) break;; # reached the list of file names
-    esac
-    shift || usage_fatal "option '${arg}' requires a value"
-done
-
-function create_repo() {
+function func_create_repo() {
     # Parameter 1 = repo name with path
     if [ "$1" != "" ]; then
         # Create variables for easier code reading.
@@ -130,19 +133,94 @@ EOL
         chmod u+x "$pre_revrop"
     else
         # https://stackoverflow.com/questions/2990414/echo-that-outputs-to-stderr
-        usage_fatal "function $0 requires repository name as an argument"
+        func_usage_fatal "function $0 requires repository name as an argument"
     fi
 }
+
+
+# Fix line ending errors by loading the dump to $new_repo-fixing
+# and then synchronize the $new_repo-fixing with $new_repo.
+# This should fix any Line Ending Errors between different SVN
+# between different SVN versions.
+# Source:
+# https://stackoverflow.com/questions/10279222/how-can-i-fix-the-svn-import-line-endings-error
+
+function func_fix_ends () {
+# Create a "repo_name"-fixing repo and sync new_repo with it.
+func_create_repo "$new_repo"-fixing
+svnadmin load "$new_repo"-fixing < $dump --bypass-prop-validation
+
+# Create initial sync
+svnsync init --sync-username \
+    svnsync file://"$new_repo" \
+    file://"$new_repo"-fixing/
+# Start syncing
+svnsync sync file://"$new_repo"
+}
+
+# handy logging and error handling functions
+function log() { printf '%s\n' "$*"; }
+function func_error() { log "ERROR: $*" >&2; }
+function func_fatal() { error "$*"; exit 1; }
+function func_usage_fatal() { error "$*"; help_usage >&2; exit 1; }
+
+# parse default options
+# Remote source for final sync
+# E.g. https://svn.com/repo
+remote_src="empty_remote_src"
+
+# Local source if synching local repo
+# E.g. /svn/repos/source_repo
+local_src="empty_local_src"
+
+# Destination repo
+# E.g. /svn/repos/my_repo
+new_repo="empty_new_repo"
+
+# User who has access to remote repo
+bkuser="empty_user"
+
+# SVN dump file for loading
+dump="empty_dump"
+
+# If the line endings should be fixed or not.
+fix_ends="no" 
+
+# Prompt questions or run defaults
+prompt="no"
+
+while [ "$#" -gt 0 ]; do
+    arg=$1
+    case $1 in
+        # convert "--opt=the value" to --opt "the value".
+        # the quotes around the equals sign is to work around a
+        # bug in emacs' syntax parsing
+        --*'='*) shift; set -- "${arg%%=*}" "${arg#*=}" "$@"; continue;;
+        -r|--remote_source) shift; remote_src=$1;;
+        -l|--local_source) shift; local_src=$1;;
+        -n|--name) shift; new_repo=$1;;
+        -u|--user) shift; bkuser=$1;;
+        -d|--dump) shift; dump=$1;;
+        -f|--fix_ends) shift; fix_ends=$1;;
+        -p|--prompt) shift; prompt=$1;; 
+        -h|--help) help_usage; exit 0;;
+        --) shift; break;;
+        -*) func_usage_fatal "unknown option: '$1'";;
+        *) break;; # reached the list of file names
+    esac
+    shift || func_usage_fatal "option '${arg}' requires a value"
+done
+
 
 # Check that there's at least --name and one source given
 if [ "$new_repo" = "empty_new_repo" ]
 then
-    usage_fatal "No new repository name -n/--name was given"
+    func_usage_fatal "No new repository name -n/--name was given"
 elif [ "$local_src" = "empty_local_src" ] && \
     [ "$remote_src" = "empty_remote_src" ] && \
     [ "$dump" = "empty_dump" ]
 then
-    usage_fatal "No source -r/-l/-d for creating a new repository was given"
+    func_usage_fatal "No source -r/-l/-d for creating a new repository was given"
 fi
 
 
@@ -163,10 +241,10 @@ fi
 echo "Prompt questions:           $prompt"
 
 # Create new repo
-create_repo "$new_repo"
+func_create_repo "$new_repo"
 
 # Load dump file if needed
-if [ "$dump" != "empty_dump" ]
+if [ "$dump" != "empty_dump" ] && [ "$prompt" == "yes" ]
 then
     echo "You have defined a SVN dump file. You have choices:
 
@@ -186,14 +264,8 @@ then
     # If 1st option, create a -fixing repo and sync new_repo with it.
     if [[ $REPLY =~ ^1$ ]]
     then
-        create_repo "$new_repo"-fixing
-        svnadmin load "$new_repo"-fixing < $dump --bypass-prop-validation
-
-        # Sync local repos
-        svnsync init --sync-username svnsync file://"$new_repo" \
-            file://"$new_repo"-fixing/
-        svnsync sync file://"$new_repo"
-    # If 2nd option, load dump to the new repo
+    	func_fix_ends
+	# If 2nd option, load dump to the new repo
     elif [[ $REPLY =~ ^2$ ]]
     then
         svnadmin load "$new_repo" < $dump
@@ -201,9 +273,37 @@ then
     then
         echo "Continuing script without loading SVN dump file."
     else
-        fatal "No valid option given!"
+        func_fatal "No valid option given!"
     fi
 fi
+
+if [ "$dump" != "empty_dump" ] && [ "$prompt" == "no" ]
+then
+    echo "A SVN dump file was defined."
+    if [ "$fix_ends" == "yes" ]
+    then
+        echo "It was defined that the line endings should be fixed."
+        cat << EOF
+Fixig the line ending errors by loading the dump to $new_repo-fixing
+and then synchronizing the $new_repo-fixing with $new_repo.
+This should fix any Line Ending Errors between different SVN
+between different SVN versions.
+Source:
+https://stackoverflow.com/questions/10279222/how-can-i-fix-the-svn-import-line-endings-error
+EOF
+        func_fix_ends
+    else
+        cat << EOF
+There will be no attempt to fix line endings.
+There might be errors with line endings if one is importing from
+much older SVN version to a newer SVN server.
+Source:
+https://stackoverflow.com/questions/10279222/how-can-i-fix-the-svn-import-line-endings-error"   
+EOF
+        svnadmin load "$new_repo" < "$dump"
+    fi
+fi
+
 
 if [ "$local_src" != "empty_local_src" ]
 then
@@ -242,6 +342,15 @@ then
     fi
 fi
 
+#######################
+### Reminders for user
+#######################
 
-echo "Remember to remove obsolete files (dump, $new_repo-fixing)..."
+echo "Remember to remove obsolete files:"
+echo "    SVN dumps"
+
+if [ "$fix_ends" == "yes" ]; then
+    echo "    $new_repo-fixing"
+fi
+
 exit 0
