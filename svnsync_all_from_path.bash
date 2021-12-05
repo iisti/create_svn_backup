@@ -4,7 +4,7 @@
 
 # Repository path. This should include only repositories
 # which are meant to be synched.
-repo_path="/opt/storage/backup-disk-01/svnsync_repos/"
+repo_path="/opt/storage/bk-disk-02/svn-repos/"
 
 # Create arreay for repositories
 arr_repos=()
