@@ -2,6 +2,8 @@
 
 # Script for mirroring repos
 
+# Add repository names which should be synched.
+# These repositories should in the path defined in repo_path.
 arr_repos=()
 arr_repos+=(reponame)
 arr_repos+=(reponame2)
