@@ -9,7 +9,7 @@ repo_path="/opt/storage/bk-disk-02/svn-repos/"
 # Create arreay for repositories
 arr_repos=()
 
-# Chekrepositories in the path
+# Check repositories in the path
 echo "##############################"
 echo "### Found repositories"
 echo "##############################"
