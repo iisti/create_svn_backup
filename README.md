@@ -1,4 +1,4 @@
-# Scripts for creating a mirror backup of SVN server
+# Scripts for creating a mirror backup of an SVN server
 * Project for creating a backup of old or new SVN repository.
 * Originally these scripts were used to migrate from SVN 1.5 to SVN 1.14.
 * Tested with Debian 11.
