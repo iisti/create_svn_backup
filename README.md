@@ -1,5 +1,11 @@
-# create_svn_backup
-Project for creating a backup of old SVN repository.
+# Scripts for creating a mirror backup of SVN server
+* Project for creating a backup of old or new SVN repository.
+* Originally these scripts were used to migrate from SVN 1.5 to SVN 1.14.
+* Tested with Debian 11.
+
+## Usage
+### Initial configurations
+* Create *svnsync* Linux user.
 
 ## Some basic SVN commands
 * These commands are not restricted for this script!
