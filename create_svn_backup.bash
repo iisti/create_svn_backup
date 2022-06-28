@@ -83,7 +83,7 @@ Arguments:
     # E.g. /svn/repos/source_repo
 
   -u <val>, --user <val>, --user=<val>
-    # A user who has access to remote repo
+    # A user who has read access to remote repo.
 
   -f <val>, --fix_ends <val>, --fix_ends=<val>
     # Choose if the line endings, should be fixed.
@@ -115,7 +115,10 @@ function func_create_repo() {
         # f means function in the variable name
         frepo="$1"
         svnadmin create "$frepo"
-        # Create hook
+        # Create hook.
+        # By default SVN doesn't allow revprops to be create or modified.
+        # Therefore the destination repository must be configured to permit those operations.
+        # Here's hardcoded user "svnsync" which is only user allowed to change the revops.
         pre_revrop="$frepo""/hooks/pre-revprop-change"
         cat >> "$pre_revrop" <<EOL
 #!/bin/bash
