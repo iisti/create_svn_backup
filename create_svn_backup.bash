@@ -134,7 +134,15 @@ function func_conf_dest_repo() {
         # Therefore the destination repository must be configured to permit those operations.
         # Only user defined by variable $flocal_user is allowed to change the pre-revops.
         pre_revrop="$frepo""/hooks/pre-revprop-change"
-        cat >> "$pre_revrop" <<EOL
+        
+        # Check if the pre_revrop file exists. If it exists print, before
+        # overwriting.
+        if [ -f "$frepo" ]; then
+            echo "WARNING: $frepo exists. It'll be overwritten!"
+            cat "$frepo"
+        fi
+
+        cat > "$pre_revrop" <<EOL
 #!/bin/bash
 
 USER="\$3"
@@ -248,7 +256,7 @@ fi
 
 
 # Check and show parameters
-echo "New repo will be:         $dest_repo"
+echo "Destination repo is be:       $dest_repo"
 
 if [ "$dump" != "empty_dump" ]; then
     echo "SVN dump file is:         $dump"
