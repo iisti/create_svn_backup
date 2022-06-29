@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 
-# A script for migrating SVN 1.5.1 to SVN 1.10
+# A script for migrating SVN 1.5.1 to SVN 1.14
 
 # Version history:
 # 0.1 First version with non positional arguments
 # 0.2 Added option "prompt" for no questions
 # 0.3 Changed functionality that one can run the script without any user input.
-script_version="0.3"
+# 0.4 Changed that one can use any local user as sync user via scrip argument.
+script_version="0.4"
 
 
 #####################################
@@ -68,7 +69,7 @@ Arguments:
     Display this usage message and exit.
 
   -n <val>, --name <val>, --name=<val>
-    # New repo, the destination
+    # Name of he destination repository
     # E.g. /svn/repos/my_repo
   
   -d <val>, --dump <val>, --dump=<val>
@@ -80,10 +81,13 @@ Arguments:
   
   -l <val>, --local_src <val>, --local_src=<val>
     # Local source if synching local repo
-    # E.g. /svn/repos/source_repo
+    # E.g. /svn/repos/source_repo-
 
-  -u <val>, --user <val>, --user=<val>
-    # A user who has read access to remote repo.
+  -lu <val>, --local-user <val>, --local-user=<val>
+    # A user who has write access to local destination..
+  
+  -ru <val>, --remote-user <val>, --remote-user=<val>
+    # A user who has read access to remote source repo.
 
   -f <val>, --fix_ends <val>, --fix_ends=<val>
     # Choose if the line endings, should be fixed.
@@ -109,22 +113,32 @@ EOF
 }
 
 function func_create_repo() {
+    # f prefix means "function" in the variable name. It's used in the function's scope.
+    
     # Parameter 1 = repo name with path
+    # Parameter 2 = local user which has write access to local destination repository
+    flocal_user="$2"
     if [ "$1" != "" ]; then
-        # Create variables for easier code reading.
-        # f means function in the variable name
+        
         frepo="$1"
-        svnadmin create "$frepo"
+        
+        svn info file://"$frepo" 
+        ret_code=$?
+        if [ $ret_code -ne 0 ]; then
+            echo "Creating a new repository"
+            svnadmin create "$frepo"
+        fi
+
         # Create hook.
         # By default SVN doesn't allow revprops to be create or modified.
         # Therefore the destination repository must be configured to permit those operations.
-        # Here's hardcoded user "svnsync" which is only user allowed to change the revops.
+        # Only user defined by variable $flocal_user is allowed to change the pre-revops.
         pre_revrop="$frepo""/hooks/pre-revprop-change"
         cat >> "$pre_revrop" <<EOL
 #!/bin/bash
 
 USER="\$3"
-backup_user=svnsync
+backup_user=$flocal_user
 
 if [ "\$backup_user" = "\$USER" ]; then exit 0; fi
 
@@ -133,7 +147,7 @@ exit 1
 EOL
 
         # Change owner of the files
-        chown -R svnsync "$frepo"
+        chown -R $local_user "$frepo"
         # Make that file executable
         chmod u+x "$pre_revrop"
     else
@@ -143,24 +157,24 @@ EOL
 }
 
 
-# Fix line ending errors by loading the dump to $new_repo-fixing
-# and then synchronize the $new_repo-fixing with $new_repo.
+# Fix line ending errors by loading the dump to $dest_repo-fixing
+# and then synchronize the $dest_repo-fixing with $dest_repo.
 # This should fix any Line Ending Errors between different SVN
 # between different SVN versions.
 # Source:
 # https://stackoverflow.com/questions/10279222/how-can-i-fix-the-svn-import-line-endings-error
 
 function func_fix_ends () {
-# Create a "repo_name"-fixing repo and sync new_repo with it.
-func_create_repo "$new_repo"-fixing
-svnadmin load "$new_repo"-fixing < $dump --bypass-prop-validation
+# Create a "repo_name"-fixing repo and sync dest_repo with it.
+func_create_repo "$dest_repo"-fixing
+svnadmin load "$dest_repo"-fixing < $dump --bypass-prop-validation
 
 # Create initial sync
 svnsync init --sync-username \
-    svnsync file://"$new_repo" \
-    file://"$new_repo"-fixing/
+    $local_user file://"$dest_repo" \
+    file://"$dest_repo"-fixing/
 # Start syncing
-svnsync sync file://"$new_repo"
+svnsync sync file://"$dest_repo"
 }
 
 # handy logging and error handling functions
@@ -180,10 +194,13 @@ local_src="empty_local_src"
 
 # Destination repo
 # E.g. /svn/repos/my_repo
-new_repo="empty_new_repo"
+dest_repo="empty_dest_repo"
 
-# User who has access to remote repo
-bkuser="empty_user"
+# A user who has write access to local destination repo
+local_user="empty_local_user"
+
+# A user who has read access to remote repo
+remote_user="empty_remote_user"
 
 # SVN dump file for loading
 dump="empty_dump"
@@ -201,11 +218,12 @@ while [ "$#" -gt 0 ]; do
         # the quotes around the equals sign is to work around a
         # bug in emacs' syntax parsing
         --*'='*) shift; set -- "${arg%%=*}" "${arg#*=}" "$@"; continue;;
-        -n|--name) shift; new_repo=$1;;
+        -n|--name) shift; dest_repo=$1;;
         -d|--dump) shift; dump=$1;;
         -r|--remote_source) shift; remote_src=$1;;
         -l|--local_source) shift; local_src=$1;;
-        -u|--user) shift; bkuser=$1;;
+        -lu|--local-user) shift; local_user=$1;;
+        -ru|--remote-user) shift; remote_user=$1;;
         -f|--fix_ends) shift; fix_ends=$1;;
         -p|--prompt) shift; prompt=$1;; 
         -h|--help) help_usage; exit 0;;
@@ -218,7 +236,7 @@ done
 
 
 # Check that there's at least --name and one source given
-if [ "$new_repo" = "empty_new_repo" ]
+if [ "$dest_repo" = "empty_dest_repo" ]
 then
     func_usage_fatal "No new repository name -n/--name was given"
 elif [ "$local_src" = "empty_local_src" ] && \
@@ -230,7 +248,7 @@ fi
 
 
 # Check and show parameters
-echo "New repo will be:         $new_repo"
+echo "New repo will be:         $dest_repo"
 
 if [ "$dump" != "empty_dump" ]; then
     echo "SVN dump file is:         $dump"
@@ -250,8 +268,8 @@ else
     echo "Remote source repo is:    No remote repo defined."
 fi
 
-if [ "$bkuser" != "empty_user" ]; then
-    echo "Backup user is:           $bkuser"
+if [ "$remote_user" != "empty_user" ]; then
+    echo "Backup user is:           $remote_user"
 else
     echo "Backup user is:           No backup user defined."
 fi
@@ -260,34 +278,34 @@ echo "Fix line endings:         $fix_ends"
 echo "Prompt questions:         $prompt"
 
 # Create new repo
-func_create_repo "$new_repo"
+func_create_repo "$dest_repo"
 
 # Load dump file if needed
 if [ "$dump" != "empty_dump" ] && [ "$prompt" == "yes" ]
 then
     echo "You have defined a SVN dump file. You have choices:
 
-1) Fix line ending errors by loading the dump to $new_repo-fixing
-   and then synchronize the $new_repo-fixing with $new_repo.
+1) Fix line ending errors by loading the dump to $dest_repo-fixing
+   and then synchronize the $dest_repo-fixing with $dest_repo.
    This should fix any Line Ending Errors between different SVN
    between different SVN versions.
    Source:
    https://stackoverflow.com/questions/10279222/how-can-i-fix-the-svn-import-line-endings-error
 
-2) Load the dump to $new_repo without creating fix repository.
+2) Load the dump to $dest_repo without creating fix repository.
 
 3) Do not load dump, but continue the script.
 "
     read -p "Your choice ( 1, 2, 3 ): " -n 1 -r
     echo    # (optional) move to a new line
-    # If 1st option, create a -fixing repo and sync new_repo with it.
+    # If 1st option, create a -fixing repo and sync dest_repo with it.
     if [[ $REPLY =~ ^1$ ]]
     then
     	func_fix_ends
 	# If 2nd option, load dump to the new repo
     elif [[ $REPLY =~ ^2$ ]]
     then
-        svnadmin load "$new_repo" < $dump
+        svnadmin load "$dest_repo" < $dump
     elif [[ $REPLY =~ ^3$ ]]
     then
         echo "Continuing script without loading SVN dump file."
@@ -303,8 +321,8 @@ then
     then
         echo "It was defined that the line endings should be fixed."
         cat << EOF
-Fixig the line ending errors by loading the dump to $new_repo-fixing
-and then synchronizing the $new_repo-fixing with $new_repo.
+Fixig the line ending errors by loading the dump to $dest_repo-fixing
+and then synchronizing the $dest_repo-fixing with $dest_repo.
 This should fix any Line Ending Errors between different SVN
 between different SVN versions.
 Source:
@@ -319,7 +337,7 @@ much older SVN version to a newer SVN server.
 Source:
 https://stackoverflow.com/questions/10279222/how-can-i-fix-the-svn-import-line-endings-error"   
 EOF
-        svnadmin load "$new_repo" < "$dump"
+        svnadmin load "$dest_repo" < "$dump"
     fi
 fi
 
@@ -327,14 +345,14 @@ fi
 if [ "$local_src" != "empty_local_src" ]
 then
     echo "Local source $local_src was given."
-    read -p "Sync $new_repo with local source?: " -n 1 -r
+    read -p "Sync $dest_repo with local source?: " -n 1 -r
     echo    # (optional) move to a new line
     if [[ $REPLY =~ ^[Yy]$ ]]
     then
-        svnsync init --sync-username svnsync \
-            file://"$new_repo" \
+        svnsync init --sync-username $local_user \
+            file://"$dest_repo" \
             file://"$local_src"
-        svnsync sync file://"$new_repo"
+        svnsync sync file://"$dest_repo"
     fi
 fi
 
@@ -346,7 +364,7 @@ then
     
     if [[ $prompt = "yes"  ]]
     then
-        read -p "Sync $new_repo with remote source?: " -n 1 -r
+        read -p "Sync $dest_repo with remote source?: " -n 1 -r
         echo    # (optional) move to a new line
     else
         # Set REPLY y if prompt is "no"
@@ -355,11 +373,11 @@ then
 
     if [[ $REPLY =~ ^[Yy]$ ]]
     then
-        svnsync init --allow-non-empty --sync-username svnsync \
-            file://"$new_repo" \
+        svnsync init --allow-non-empty --sync-username $local_user \
+            file://"$dest_repo" \
             $remote_src \
-            --source-username $bkuser
-        svnsync sync --sync-username svnsync file://"$new_repo"
+            --source-username $remote_user
+        svnsync sync --sync-username $local_user file://"$dest_repo"
     fi
 fi
 
@@ -371,7 +389,7 @@ echo "Remember to remove obsolete files:"
 echo "    SVN dumps"
 
 if [ "$fix_ends" == "yes" ]; then
-    echo "    $new_repo-fixing"
+    echo "    $dest_repo-fixing"
 fi
 
 exit 0
