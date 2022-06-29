@@ -259,37 +259,37 @@ fi
 echo "Destination repo is be:       $dest_repo"
 
 if [ "$dump" != "empty_dump" ]; then
-    echo "SVN dump file is:         $dump"
+    echo "SVN dump file is:             $dump"
 else
-    echo "SVN dump file is:         No SVN dump file defined."
+    echo "SVN dump file is:             No SVN dump file defined."
 fi
 
 if [ "$local_src" != "empty_local_src" ]; then
-    echo "Local source repo is:     $local_src"
+    echo "Local source repo is:         $local_src"
 else
-    echo "Local source repo is:     No local repo defined."
+    echo "Local source repo is:         No local source repo defined."
 fi
 
 if [ "$remote_src" != "empty_remote_src" ]; then
-    echo "Remote source repo is:    $remote_src"
+    echo "Remote source repo is:        $remote_src"
 else
-    echo "Remote source repo is:    No remote repo defined."
+    echo "Remote source repo is:        No remote repo defined."
 fi
 
 if [ "$local_user" != "empty_local_user" ]; then
-    echo "Local user is:           $local_user"
+    echo "Local user is:                $local_user"
 else
-    echo "Local user is:           No local user defined."
+    echo "Local user is:                No local user defined."
 fi
 
 if [ "$remote_user" != "empty_remote_user" ]; then
-    echo "Remote user is:           $remote_user"
+    echo "Remote user is:               $remote_user"
 else
-    echo "Remote user is:           No local user defined."
+    echo "Remote user is:               No local user defined."
 fi
 
-echo "Fix line endings:         $fix_ends"
-echo "Prompt questions:         $prompt"
+echo "Fix line endings:             $fix_ends"
+echo "Prompt questions:             $prompt"
 
 # Configure or create a new repo
 func_conf_dest_repo "$dest_repo" "$local_user"
