@@ -142,7 +142,7 @@ backup_user=$flocal_user
 
 if [ "\$backup_user" = "\$USER" ]; then exit 0; fi
 
-echo "ERROR: Only user \"$backup_user\" can change revision properties!" >&2
+echo "ERROR: Only user $backup_user can change revision properties!" >&2
 exit 1
 EOL
 
