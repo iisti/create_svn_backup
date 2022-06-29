@@ -112,7 +112,7 @@ Arguments:
 EOF
 }
 
-function func_create_repo() {
+function func_conf_dest_repo() {
     # f prefix means "function" in the variable name. It's used in the function's scope.
     
     # Parameter 1 = repo name with path
@@ -166,7 +166,7 @@ EOL
 
 function func_fix_ends () {
 # Create a "repo_name"-fixing repo and sync dest_repo with it.
-func_create_repo "$dest_repo"-fixing
+func_conf_dest_repo "$dest_repo"-fixing "$local_user"
 svnadmin load "$dest_repo"-fixing < $dump --bypass-prop-validation
 
 # Create initial sync
@@ -268,17 +268,23 @@ else
     echo "Remote source repo is:    No remote repo defined."
 fi
 
-if [ "$remote_user" != "empty_user" ]; then
-    echo "Backup user is:           $remote_user"
+if [ "$local_user" != "empty_local_user" ]; then
+    echo "Local user is:           $local_user"
 else
-    echo "Backup user is:           No backup user defined."
+    echo "Local user is:           No local user defined."
+fi
+
+if [ "$remote_user" != "empty_remote_user" ]; then
+    echo "Remote user is:           $remote_user"
+else
+    echo "Remote user is:           No local user defined."
 fi
 
 echo "Fix line endings:         $fix_ends"
 echo "Prompt questions:         $prompt"
 
-# Create new repo
-func_create_repo "$dest_repo"
+# Configure or create a new repo
+func_conf_dest_repo "$dest_repo" "$local_user"
 
 # Load dump file if needed
 if [ "$dump" != "empty_dump" ] && [ "$prompt" == "yes" ]
