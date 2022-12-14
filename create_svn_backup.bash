@@ -6,7 +6,7 @@
 # 0.1 First version with non positional arguments
 # 0.2 Added option "prompt" for no questions
 # 0.3 Changed functionality that one can run the script without any user input.
-# 0.4 Changed that one can use any local user as sync user via scrip argument.
+# 0.4 Changed that one can use any local user as sync user via script argument.
 script_version="0.4"
 
 
@@ -69,7 +69,7 @@ Arguments:
     Display this usage message and exit.
 
   -n <val>, --name <val>, --name=<val>
-    # Name of he destination repository
+    # Name of the destination repository
     # E.g. /svn/repos/my_repo
   
   -d <val>, --dump <val>, --dump=<val>
@@ -81,13 +81,13 @@ Arguments:
   
   -l <val>, --local_src <val>, --local_src=<val>
     # Local source if synching local repo
-    # E.g. /svn/repos/source_repo-
+    # E.g. /svn/repos/source_repo_foobar
 
   -lu <val>, --local-user <val>, --local-user=<val>
-    # A user who has write access to local destination..
+    # A user who has write access to a local destination.
   
   -ru <val>, --remote-user <val>, --remote-user=<val>
-    # A user who has read access to remote source repo.
+    # A user who has read access to the remote source repo.
 
   -f <val>, --fix_ends <val>, --fix_ends=<val>
     # Choose if the line endings, should be fixed.
@@ -120,6 +120,7 @@ function func_conf_dest_repo() {
     flocal_user="$2"
     if [ "$1" != "" ]; then
         
+        # f means function in the variable name
         frepo="$1"
         
         svn info file://"$frepo" 
@@ -256,6 +257,7 @@ fi
 
 
 # Check and show parameters
+echo "### Configurations"
 echo "Destination repo is be:       $dest_repo"
 
 if [ "$dump" != "empty_dump" ]; then
@@ -290,6 +292,7 @@ fi
 
 echo "Fix line endings:             $fix_ends"
 echo "Prompt questions:             $prompt"
+echo ""
 
 # Configure or create a new repo
 func_conf_dest_repo "$dest_repo" "$local_user"
@@ -335,21 +338,21 @@ then
     then
         echo "It was defined that the line endings should be fixed."
         cat << EOF
-Fixig the line ending errors by loading the dump to $dest_repo-fixing
-and then synchronizing the $dest_repo-fixing with $dest_repo.
-This should fix any Line Ending Errors between different SVN
-between different SVN versions.
-Source:
-https://stackoverflow.com/questions/10279222/how-can-i-fix-the-svn-import-line-endings-error
+    Fixig the line ending errors by loading the dump to $dest_repo-fixing
+    and then synchronizing the $dest_repo-fixing with $dest_repo.
+    This should fix any Line Ending Errors between different SVN
+    between different SVN versions.
+    Source:
+    https://stackoverflow.com/questions/10279222/how-can-i-fix-the-svn-import-line-endings-error
 EOF
         func_fix_ends
     else
         cat << EOF
-There will be no attempt to fix line endings.
-There might be errors with line endings if one is importing from
-much older SVN version to a newer SVN server.
-Source:
-https://stackoverflow.com/questions/10279222/how-can-i-fix-the-svn-import-line-endings-error"   
+    There will be no attempt to fix line endings.
+    There might be errors with line endings if one is importing from
+    much older SVN version to a newer SVN server.
+    Source:
+    https://stackoverflow.com/questions/10279222/how-can-i-fix-the-svn-import-line-endings-error"   
 EOF
         svnadmin load "$dest_repo" < "$dump"
     fi
@@ -387,6 +390,7 @@ then
 
     if [[ $REPLY =~ ^[Yy]$ ]]
     then
+        echo "Syncing local with remote."
         svnsync init --allow-non-empty --sync-username $local_user \
             file://"$dest_repo" \
             $remote_src \
